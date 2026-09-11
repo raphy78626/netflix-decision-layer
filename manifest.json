@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Netflix Decision Layer",
+  "version": "0.1.0",
+  "description": "Overlay IMDb/Rotten Tomatoes/Metacritic ratings on Netflix, filter the catalog by thresholds, and get a personalized match score.",
+  "minimum_chrome_version": "110",
+  "permissions": ["storage", "identity"],
+  "host_permissions": [
+    "https://*.netflix.com/*",
+    "https://www.omdbapi.com/*"
+  ],
+  "background": {
+    "service_worker": "src/background/service-worker.ts",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*.netflix.com/*"],
+      "js": ["src/content/index.ts"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "Netflix Decision Layer",
+    "default_popup": "src/ui/popup.html"
+  },
+  "options_ui": {
+    "page": "src/ui/options.html",
+    "open_in_tab": true
+  }
+}

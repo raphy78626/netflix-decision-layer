@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Netflix — Mock</title>
+  <style>
+    body { background: #141414; color: #fff; font-family: sans-serif; margin: 0; }
+    .mainView { padding: 40px; }
+    .row { display: flex; gap: 8px; margin-bottom: 24px; }
+    .title-card {
+      position: relative;
+      width: 200px; height: 280px;
+      background: #2a2a2a;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .title-card .fallback-text { padding: 8px; font-size: 14px; }
+    .title-card a { display: block; height: 100%; }
+  </style>
+</head>
+<body>
+  <div class="mainView">
+    <div class="row" data-ui-row>
+      <div class="title-card" data-id="80050063" aria-label="Inception (2010) - 16+ - 2h 28m - Sci-Fi Movies">
+        <a href="/title/80050063"></a>
+        <div class="fallback-text">Inception</div>
+      </div>
+      <div class="title-card" data-id="70191831" aria-label="The Room (2003) - 18+ - 1h 39m - Independent Movies">
+        <a href="/title/70191831"></a>
+        <div class="fallback-text">The Room</div>
+      </div>
+      <div class="title-card" data-id="80196012" aria-label="The Crown (2016) - TV Series">
+        <a href="/title/80196012"></a>
+        <div class="fallback-text">The Crown</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

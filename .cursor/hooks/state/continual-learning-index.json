@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "transcripts": {
+    "0c2dfc41-b93b-4796-a575-370da64e3e0f/0c2dfc41-b93b-4796-a575-370da64e3e0f.jsonl": {
+      "mtimeMs": 1789126655000,
+      "processedAtMs": 1789126880000
+    },
+    "0c2dfc41-b93b-4796-a575-370da64e3e0f/subagents/0512166c-b281-4b42-a88f-c974555d897c.jsonl": {
+      "mtimeMs": 1789126728000,
+      "processedAtMs": 1789126880000
+    }
+  }
+}

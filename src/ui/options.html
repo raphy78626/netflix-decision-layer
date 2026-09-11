@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Netflix Decision Layer — Settings</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; max-width: 640px; margin: 0 auto; padding: 24px; color: #222; }
+    h1 { font-size: 22px; }
+    h2 { font-size: 16px; margin-top: 28px; }
+    label { display: block; margin-top: 12px; font-weight: 600; }
+    input[type=text], input[type=number] { width: 100%; padding: 8px; font-size: 14px; box-sizing: border-box; margin-top: 4px; }
+    input[type=range] { width: 100%; }
+    .hint { font-size: 12px; color: #666; margin-top: 4px; }
+    .row { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+    .row .label { flex: 1; }
+    .row .val { font-weight: 700; min-width: 60px; text-align: right; }
+    button { padding: 8px 16px; font-size: 14px; cursor: pointer; background: #e50914; color: #fff; border: none; border-radius: 4px; }
+    button.secondary { background: #444; }
+    .msg { font-size: 13px; margin-top: 8px; min-height: 18px; }
+    .ok { color: #0a7d23; }
+    .err { color: #c00; }
+    .affinity { margin-top: 12px; }
+    .bar-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: 12px; }
+    .bar-row .name { width: 120px; }
+    .bar-row .bar { flex: 1; height: 12px; background: #eee; border-radius: 2px; overflow: hidden; }
+    .bar-row .fill { height: 100%; background: #e50914; }
+    .bar-row .num { width: 40px; text-align: right; }
+  </style>
+</head>
+<body>
+  <h1>Netflix Decision Layer</h1>
+
+  <h2>OMDb API</h2>
+  <label for="omdbApiKey">OMDb API Key</label>
+  <input type="text" id="omdbApiKey" placeholder="e.g. abc123de" />
+  <div class="hint">Get a free key at <a href="https://www.omdbapi.com/apikey.aspx" target="_blank" rel="noopener">omdbapi.com/apikey.aspx</a> (1000 requests/day free tier).</div>
+  <div class="row">
+    <button id="validateBtn">Validate</button>
+    <button class="secondary" id="saveBtn">Save</button>
+  </div>
+  <div class="msg" id="msg"></div>
+
+  <h2>Filtering</h2>
+  <div class="row">
+    <input type="checkbox" id="filterEnabled" />
+    <label for="filterEnabled" style="margin:0; font-weight:normal">Enable filtering on Netflix</label>
+  </div>
+  <div class="row">
+    <span class="label">Filter mode</span>
+    <select id="filterMode">
+      <option value="fade">Fade below threshold</option>
+      <option value="hide">Hide below threshold</option>
+    </select>
+  </div>
+
+  <div class="row"><span class="label">Min IMDb</span><input type="range" id="minImdb" min="0" max="10" step="0.1" /><span class="val" id="minImdbVal">0</span></div>
+  <div class="row"><span class="label">Min Rotten Tomatoes</span><input type="range" id="minRt" min="0" max="100" step="1" /><span class="val" id="minRtVal">0</span></div>
+  <div class="row"><span class="label">Min Metacritic</span><input type="range" id="minMetacritic" min="0" max="100" step="1" /><span class="val" id="minMetacriticVal">0</span></div>
+
+  <h2>Overlay & Personalization</h2>
+  <div class="row"><input type="checkbox" id="overlayEnabled" /><label for="overlayEnabled" style="margin:0; font-weight:normal">Show rating badges on Netflix</label></div>
+  <div class="row"><input type="checkbox" id="personalizationEnabled" /><label for="personalizationEnabled" style="margin:0; font-weight:normal">Learn preferences and show match %</label></div>
+
+  <h2>Learned preferences</h2>
+  <div class="affinity" id="affinity"><em>None yet. Hover and click titles on Netflix to teach the model.</em></div>
+  <div class="row"><button class="secondary" id="resetPrefsBtn">Reset preferences</button></div>
+
+  <script type="module" src="./options.ts"></script>
+</body>
+</html>
