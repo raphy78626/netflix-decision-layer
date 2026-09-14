@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { parseAriaLabel, extractCard, findCards } from '@/content/extractor';
+import { parseAriaLabel, netflixAdapter } from '@/content/platforms/netflix';
+
+const { extractCard, findCards } = netflixAdapter;
 
 describe('parseAriaLabel', () => {
   it('parses title + year + movie', () => {
@@ -29,8 +31,6 @@ describe('parseAriaLabel', () => {
   });
 
   it('keeps an UNSPACED dash inside the title', () => {
-    // Regression: the old parser split on ANY dash and truncated
-    // "Spider-Man: Homecoming" to "Spider".
     const r = parseAriaLabel('Spider-Man: Homecoming (2017) - Movie');
     expect(r.title).toBe('Spider-Man: Homecoming');
     expect(r.year).toBe(2017);
@@ -49,14 +49,15 @@ describe('parseAriaLabel', () => {
   });
 });
 
-describe('extractCard', () => {
+describe('extractCard (netflix adapter)', () => {
   it('extracts from a card with data-id and aria-label', () => {
     const el = document.createElement('div');
     el.setAttribute('data-id', '80050063');
     el.setAttribute('aria-label', 'Inception (2010) - 16+ - Sci-Fi Movies');
     const card = extractCard(el);
     expect(card).not.toBeNull();
-    expect(card?.netflixId).toBe('80050063');
+    expect(card?.id).toBe('80050063');
+    expect(card?.platform).toBe('netflix');
     expect(card?.title).toBe('Inception');
     expect(card?.year).toBe(2010);
     expect(card?.type).toBe('movie');
@@ -73,17 +74,17 @@ describe('extractCard', () => {
     el.appendChild(fallback);
     const card = extractCard(el);
     expect(card).not.toBeNull();
-    expect(card?.netflixId).toBe('80050063');
+    expect(card?.id).toBe('80050063');
     expect(card?.title).toBe('Inception');
   });
 
   it('prefers the title link aria-label over the container aria-label', () => {
     const el = document.createElement('div');
     el.setAttribute('data-id', '80050063');
-    el.setAttribute('aria-label', 'The Room (2003) - Movie'); // container: wrong/shared title
+    el.setAttribute('aria-label', 'The Room (2003) - Movie');
     const link = document.createElement('a');
     link.href = '/title/80050063';
-    link.setAttribute('aria-label', 'Inception (2010) - Sci-Fi Movies'); // per-tile truth
+    link.setAttribute('aria-label', 'Inception (2010) - Sci-Fi Movies');
     el.appendChild(link);
     const card = extractCard(el);
     expect(card?.title).toBe('Inception');
@@ -91,10 +92,6 @@ describe('extractCard', () => {
   });
 
   it('reads the title from the link aria-label even when a generic first-[aria-label] element exists', () => {
-    // Regression for the observed bug: modern Netflix cards can contain a
-    // generic first [aria-label] (e.g. a "Play" button) BEFORE the real title
-    // link. The old code grabbed that generic string ("Play") for EVERY card,
-    // giving every tile the same fingerprint -> same rating.
     const el = document.createElement('div');
     el.setAttribute('data-id', '80050063');
     const btn = document.createElement('button');
@@ -107,15 +104,13 @@ describe('extractCard', () => {
     fallback.className = 'fallback-text';
     fallback.textContent = 'Inception';
     link.appendChild(fallback);
-    el.appendChild(btn); // generic aria comes FIRST in DOM order
+    el.appendChild(btn);
     el.appendChild(link);
     const card = extractCard(el);
     expect(card?.title).toBe('Inception');
   });
 
   it('falls back to the card .fallback-text when the link has a generic aria-label', () => {
-    // Netflix variant where the poster link's aria-label is the generic string
-    // "Details": the real title lives in .fallback-text.
     const el = document.createElement('div');
     el.setAttribute('data-id', '80050063');
     const link = document.createElement('a');
@@ -142,11 +137,8 @@ describe('extractCard', () => {
   });
 });
 
-describe('findCards', () => {
+describe('findCards (netflix adapter)', () => {
   it('never returns a container that holds links to MULTIPLE different titles', () => {
-    // A row-level wrapper (e.g. a rail that matched [data-ui-tracking-context]
-    // or a fallback class containing "card") must NOT become the card container
-    // for every tile in it — that collapsed everything onto one rating.
     document.body.innerHTML = `
       <div data-ui-tracking-context="row">
         <div class="slider-item">

@@ -3,18 +3,18 @@
 // NEVER all collapse onto the same fingerprint. One shape collapsing is
 // exactly the "same rating shows on every tile" bug.
 import { describe, it, expect } from 'vitest';
-import { findCards, extractCard } from '@/content/extractor';
+import { netflixAdapter } from '@/content/platforms/netflix';
 import { fingerprint } from '@/utils/fingerprint';
 
 function verifyNoCollapse(html: string): void {
   document.body.innerHTML = html;
-  const found = findCards(document);
+  const found = netflixAdapter.findCards(document);
   expect(found.length).toBeGreaterThanOrEqual(2);
   const cards = found
-    .map((el) => extractCard(el))
+    .map((el) => netflixAdapter.extractCard(el))
     .filter((c): c is NonNullable<typeof c> => c !== null);
   expect(cards.length).toBe(found.length); // every detected card must extract
-  const fps = cards.map((c) => fingerprint(c.netflixId, c.title, c.year, c.type));
+  const fps = cards.map((c) => fingerprint(c.platform, c.id, c.title, c.year, c.type));
   expect(new Set(fps).size).toBe(fps.length); // no two cards share a fingerprint
 }
 
@@ -151,9 +151,9 @@ describe('fingerprint collapse probe (no "same rating on every tile")', () => {
         <div class="title-card" data-id="70191831"><a href="/title/70191831" aria-label="The Room (2003) - Movie"></a></div>
       </div>
     `;
-    const found = findCards(document);
+    const found = netflixAdapter.findCards(document);
     expect(found).toHaveLength(2);
-    const titles = found.map((el) => extractCard(el)?.title).sort();
+    const titles = found.map((el) => netflixAdapter.extractCard(el)?.title).sort();
     expect(titles).toEqual(['Inception', 'The Room']);
   });
 
@@ -177,9 +177,9 @@ describe('fingerprint collapse probe (no "same rating on every tile")', () => {
         <div class="slider-item"><a href="/browse?jbv=82853382" aria-label="GDN" data-uia="standard-card"><img alt="" src="x.webp"/></a></div>
       </div>
     `;
-    const found = findCards(document);
+    const found = netflixAdapter.findCards(document);
     expect(found).toHaveLength(2);
-    const titles = found.map((el) => extractCard(el)?.title).sort();
+    const titles = found.map((el) => netflixAdapter.extractCard(el)?.title).sort();
     expect(titles).toEqual(['GDN', 'You']);
   });
 

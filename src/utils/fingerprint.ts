@@ -1,28 +1,33 @@
-import type { NetflixTitleType } from '@/types/netflix';
+import type { PlatformId, TitleType } from '@/types/title';
 
 /**
- * Build a stable fingerprint for a Netflix card so we can dedupe cache lookups
- * and in-flight requests.
+ * Build a stable fingerprint for a title card so we can dedupe cache lookups
+ * and in-flight requests across platforms.
  *
- * Format: netflixId|title|year|type  (e.g. `80050063|inception|2010|movie`)
+ * Format: platform|id|title|year|type  (e.g. `netflix|80050063|inception|2010|movie`)
  *
- * The Netflix title ID comes FIRST on purpose: it is unique per title, so two
- * DIFFERENT tiles can never share a fingerprint and therefore can never share
- * a cached rating. This is the structural guarantee that one card's rating
- * cannot leak onto another tile, even if title parsing is noisy. The same title
- * repeated across rows shares the same ID, so it intentionally shares a
- * fingerprint and reuses its cache entry.
+ * The platform + id come FIRST on purpose:
+ *  - The platform's title id is unique per title on its own site, so two
+ *    DIFFERENT tiles on the same platform can never share a fingerprint and
+ *    therefore can never share a cached rating. This is the structural
+ *    guarantee that one card's rating cannot leak onto another tile.
+ *  - The platform prefix isolates the same title on different sites (Netflix
+ *    vs Prime) so their OMDb lookups don't collide.
+ * The same title repeated across rows on one platform shares the same id, so
+ * it intentionally shares a fingerprint and reuses its cache entry.
  */
 export function fingerprint(
-  netflixId: string,
+  platform: PlatformId,
+  id: string,
   title: string,
   year: number | undefined,
-  type: NetflixTitleType,
+  type: TitleType,
 ): string {
-  const id = netflixId.trim();
+  const p = platform;
+  const i = id.trim();
   const t = title.trim().toLowerCase();
   const y = year ?? '';
-  return `${id}|${t}|${y}|${type}`;
+  return `${p}|${i}|${t}|${y}|${type}`;
 }
 
 /** Cheap non-crypto hash for cache keys when needed */

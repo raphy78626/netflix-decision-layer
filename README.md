@@ -1,18 +1,20 @@
-# Netflix Decision Layer
+# Decision Layer — Ratings for Netflix, Hotstar & Prime
 
-A Manifest V3 Chrome extension that turns Netflix into a decision tool. It overlays IMDb / Rotten Tomatoes / Metacritic ratings on title cards, lets you filter the catalog by rating thresholds, and computes a personalized **"Your match %"** score from in-browser signals. All processing is local — there is no backend server.
+A Manifest V3 Chrome extension that turns streaming catalogs into a decision tool. It overlays IMDb / Rotten Tomatoes / Metacritic ratings on title cards across **Netflix, Jio Hotstar, and Amazon Prime Video**, lets you filter the catalog by rating thresholds, and computes a personalized **"Your match %"** score from in-browser signals. All processing is local — there is no backend server.
 
 ## Why this exists
 
-The basic "IMDb rating on Netflix" overlay is a crowded extension category. This project deliberately goes further: ratings are only **one input** into a decision layer that also filters the catalog and learns your taste. The defensible product is the personalization, not the badge.
+The basic "IMDb rating on Netflix" overlay is a crowded extension category. This project deliberately goes further on two axes: (1) ratings are only **one input** into a decision layer that also filters the catalog and learns your taste, and (2) the extractor is a **per-platform adapter** so the same decision layer runs across multiple streaming sites instead of being Netflix-specific. The defensible product is the personalization + the platform-agnostic core, not the badge.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
     NF[Netflix DOM] --> CS[Content Script]
-    CS --> EXT[Card Extractor]
-    EXT -->|title+year+type| FP[Fingerprint]
+    HS[Hotstar DOM] --> CS
+    PV[Prime Video DOM] --> CS
+    CS --> ADP[Platform Adapter]
+    ADP -->|title+year+type+platform id| FP[Fingerprint]
     FP -->|cache hit| CACHE[(IndexedDB)]
     FP -->|cache miss| SW[Service Worker]
     SW --> RL[Rate Limiter]
@@ -22,6 +24,8 @@ flowchart LR
     CACHE --> CS
     CS --> OV[Overlay Injector]
     OV --> NF
+    OV --> HS
+    OV --> PV
     CS --> FLT[Filter Engine]
     FLT -->|hide/fade| NF
     CS --> PREF[Preference Model]
@@ -31,10 +35,22 @@ flowchart LR
     SIG --> PREF
 ```
 
+### Platform adapters
+
+Everything site-specific lives behind a `PlatformAdapter` interface (`findCards`, `extractCard`, `getCardId`, `matchesHost`). The shared core — OMDb resolver, IndexedDB cache, overlay, filter, preferences — is platform-agnostic and keyed by a **platform-prefixed fingerprint** so the same title on two different sites never shares a cache entry.
+
+| Platform | Status | Host |
+|---|---|---|
+| Netflix | ✅ Confirmed on live `netflix.com/browse` (77 cards, all distinct) | `*.netflix.com` |
+| Jio Hotstar | 🚧 Scaffolded — selectors need a live probe (`npm run probe:hotstar`) | `*.hotstar.com`, `*.jiocinema.com` |
+| Amazon Prime Video | 🚧 Scaffolded — selectors need a live probe (`npm run probe:prime`) | `*.primevideo.com`, `*.amazon.com` |
+
+To finish a scaffolded platform: run the probe, log in, browse to a card grid, press Enter, then tune `CARD_LINK_SELECTORS` / title sources in `src/content/platforms/<platform>.ts` from the dumped sample. This is the exact process that confirmed Netflix.
+
 ### Data flow — single title
 
-1. `MutationObserver` fires on a new Netflix card → `extractor.ts` pulls `{title, year, type}`
-2. `fingerprint.ts` builds the cache key from `netflixId|title|year|type` → IndexedDB cache lookup
+1. `MutationObserver` fires on a new card → the active platform adapter pulls `{platform, id, title, year, type}`
+2. `fingerprint.ts` builds the cache key from `platform|id|title|year|type` → IndexedDB cache lookup
 3. On a miss, the content script sends a `chrome.runtime.sendMessage` to the service worker
 4. Service worker: rate-limiter → OMDb fetch → resolver normalizes → write cache → reply
 5. Content script: overlay injects badges + hover card + match %
@@ -54,14 +70,19 @@ Netflix_imdb_rotten/
     content/
       index.ts                   # entry, observer bootstrap, wires everything
       observer.ts                # MutationObserver + SPA route patching
-      extractor.ts               # pulls title/year/type from card DOM
+      extractor.ts               # thin dispatcher -> active platform adapter
+      platforms/
+        platform.ts              # PlatformAdapter interface + getActivePlatform() registry
+        netflix.ts               # Netflix adapter (confirmed)
+        hotstar.ts               # Jio Hotstar adapter (scaffolded)
+        primevideo.ts            # Amazon Prime Video adapter (scaffolded)
       overlay.ts                 # badge injection (Shadow DOM)
       hover-card.ts              # rich hover panel with deep links
       filter.ts                  # threshold hide/fade
       shadow-host.ts             # Shadow DOM isolation helper
     storage/
       cache.ts                   # IndexedDB (resolved + ratings stores, TTL + SWR)
-      settings.ts                # chrome.storage.sync settings
+      settings.ts                # chrome.storage.local settings
       signals.ts                 # user signal ingest + weights
       preferences.ts             # preference vector + cosine match score
     ui/
@@ -69,10 +90,12 @@ Netflix_imdb_rotten/
       popup.html / popup.ts       # quick toggles + OMDb quota status
     types/
       omdb.ts
-      netflix.ts
+      title.ts                   # platform-neutral TitleCard / TitleType
     utils/
-      fingerprint.ts
-  tests/                          # Vitest unit tests (68 passing)
+      fingerprint.ts             # platform-prefixed fingerprint
+  scripts/
+    platform-probe.ts            # live DOM probe for any platform (--target=...)
+  tests/                          # Vitest unit tests (84 passing)
 ```
 
 ## Quick start
@@ -96,7 +119,7 @@ npm run build      # outputs dist/
 3. Click **Load unpacked** and select the `dist/` folder
 4. Open the extension options (click the puzzle-piece → Netflix Decision Layer → ⚙)
 5. Enter your OMDb API key (get a free one at <https://www.omdbapi.com/apikey.aspx>) and click **Validate**
-6. Visit <https://www.netflix.com> and browse — badges appear on title cards
+6. Visit <https://www.netflix.com> (or <https://www.hotstar.com> / <https://www.primevideo.com>) and browse — badges appear on title cards
 
 ### Develop with HMR
 
@@ -109,10 +132,13 @@ CRXJS will rebuild on save. Reload the extension in `chrome://extensions` after 
 ### Run tests
 
 ```bash
-npm test            # unit tests (68 passing)
+npm test            # unit tests (84 passing)
 npm run test:watch
 npm run test:e2e    # Playwright E2E against a Netflix HTML mock (9 passing)
 npm run typecheck   # tsc --noEmit
+npm run probe:netflix   # live DOM probe (interactive, headed Chromium)
+npm run probe:hotstar
+npm run probe:prime
 ```
 
 The E2E suite loads a Netflix mock page ([e2e/netflix-mock.html](e2e/netflix-mock.html)), stubs the chrome extension APIs, injects the built content script bundle, and asserts on real DOM injection in Chromium — covering badge injection, RT fresh/rotten coloring, per-tile ratings staying distinct (no "same rating on every tile"), filter fade/hide, hover card, preference signal recording, and cold-start match %.
@@ -167,14 +193,13 @@ A lightweight in-browser preference vector over **genres + runtime bucket + deca
 - **TypeScript + Vite + `@crxjs/vite-plugin`** — MV3 build with HMR and manifest auto-generation
 - **IndexedDB** via the `idb` wrapper
 - **chrome.storage.sync** for synced settings + API key
-- **Vitest** + **jsdom** for unit tests (68 passing)
+- **Vitest** + **jsdom** for unit tests (84 passing)
 - **Shadow DOM** for all injected UI
 
 ## Out of scope for v1
 
 - Firefox / Edge port (MV3 Chrome first)
 - TMDB integration (v2 — richer metadata + audience score + trailers)
-- Cross-platform support (Disney+, HBO Max) — v2
 - Server-side preference sync (chrome.storage.sync covers basics)
 - **Automated Playwright E2E on a Netflix HTML mock** — implemented (9 tests covering inject, per-tile rating distinctness, filter fade/hide, hover, preference recording, cold-start match)
 

@@ -12,7 +12,9 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "smoke:omdb": "tsx scripts/omdb-smoke.ts",
-    "probe:netflix": "tsx scripts/netflix-probe.ts",
+    "probe:netflix": "tsx scripts/platform-probe.ts --target=netflix",
+    "probe:hotstar": "tsx scripts/platform-probe.ts --target=hotstar",
+    "probe:prime": "tsx scripts/platform-probe.ts --target=prime",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

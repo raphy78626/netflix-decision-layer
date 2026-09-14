@@ -1,10 +1,10 @@
-import { extractCard, findCards, getCardNetflixId } from './extractor';
+import { extractCard, findCards, getCardId } from './extractor';
 import { fingerprint } from '@/utils/fingerprint';
 import { discardCardShadow } from './shadow-host';
-import type { NetflixCard } from '@/types/netflix';
+import type { TitleCard } from '@/types/title';
 
 export interface ScanResult {
-  cards: NetflixCard[];
+  cards: TitleCard[];
 }
 
 const DEBOUNCE_MS = 200;
@@ -14,7 +14,7 @@ const NDL_ID_ATTR = 'data-ndl-id';
 let scanTimer: ReturnType<typeof setTimeout> | null = null;
 let observer: MutationObserver | null = null;
 
-type CardHandler = (card: NetflixCard, fp: string) => void;
+type CardHandler = (card: TitleCard, fp: string) => void;
 let handler: CardHandler | null = null;
 
 export function startObserver(cb: CardHandler): void {
@@ -52,7 +52,7 @@ export function scan(): void {
   let extracted = 0;
   const failedSamples: HTMLElement[] = [];
   for (const el of elements) {
-    const currentId = getCardNetflixId(el);
+    const currentId = getCardId(el);
     const stampedId = el.getAttribute(NDL_ID_ATTR);
     // Skip only when we already processed THIS element for THIS title.
     // Netflix reuses DOM nodes when rows re-render: if a wrapper now points
@@ -69,8 +69,8 @@ export function scan(): void {
     }
     extracted++;
     el.setAttribute(NDL_ATTR, '1');
-    el.setAttribute(NDL_ID_ATTR, card.netflixId);
-    const fp = fingerprint(card.netflixId, card.title, card.year, card.type);
+    el.setAttribute(NDL_ID_ATTR, card.id);
+    const fp = fingerprint(card.platform, card.id, card.title, card.year, card.type);
     handler(card, fp);
   }
   if (elements.length > 0 && extracted === 0) {

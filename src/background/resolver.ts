@@ -1,4 +1,4 @@
-import type { NetflixTitleType } from '@/types/netflix';
+import type { TitleType } from '@/types/title';
 import type { TitleRatings } from '@/types/omdb';
 import { getResolved, getRatings, setResolved, setRatings } from '@/storage/cache';
 import { omdbSearch, OmdbError, normalizeOmdbResponse } from './omdb-client';
@@ -8,7 +8,7 @@ export interface ResolveInput {
   fingerprint: string;
   title: string;
   year?: number;
-  type: NetflixTitleType;
+  type: TitleType;
   apiKey: string;
 }
 
@@ -59,9 +59,9 @@ async function resolveTitleImpl(input: ResolveInput): Promise<ResolveResult> {
 
   // 3. Try OMDb with full input, then progressively relax
   const attempts: Array<{ year?: number; type?: 'movie' | 'series' }> = [
-    { year: input.year, type: netflixTypeToOmdb(input.type) },
+    { year: input.year, type: titleTypeToOmdb(input.type) },
     { year: input.year },
-    { type: netflixTypeToOmdb(input.type) },
+    { type: titleTypeToOmdb(input.type) },
     {},
   ];
 
@@ -93,7 +93,7 @@ async function resolveTitleImpl(input: ResolveInput): Promise<ResolveResult> {
   return { status: 'notfound' };
 }
 
-function netflixTypeToOmdb(t: NetflixTitleType): 'movie' | 'series' | undefined {
+function titleTypeToOmdb(t: TitleType): 'movie' | 'series' | undefined {
   if (t === 'movie') return 'movie';
   if (t === 'series') return 'series';
   return undefined;
@@ -116,7 +116,7 @@ async function refreshInBackground(input: ResolveInput, knownImdbId: string): Pr
       const res = await omdbSearch({
         title: input.title,
         year: input.year,
-        type: netflixTypeToOmdb(input.type),
+        type: titleTypeToOmdb(input.type),
         apiKey: input.apiKey,
       });
       if (res.Response === 'True' && res.imdbID) {

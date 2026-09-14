@@ -1,12 +1,16 @@
 {
   "manifest_version": 3,
-  "name": "Netflix Decision Layer",
-  "version": "0.1.0",
-  "description": "Overlay IMDb/Rotten Tomatoes/Metacritic ratings on Netflix, filter the catalog by thresholds, and get a personalized match score.",
+  "name": "Decision Layer — Ratings for Netflix, Hotstar & Prime",
+  "version": "0.2.0",
+  "description": "Overlay IMDb/Rotten Tomatoes/Metacritic ratings on Netflix, Jio Hotstar and Amazon Prime Video title cards, filter the catalog by thresholds, and get a personalized match score.",
   "minimum_chrome_version": "110",
   "permissions": ["storage", "identity"],
   "host_permissions": [
     "https://*.netflix.com/*",
+    "https://*.hotstar.com/*",
+    "https://*.jiocinema.com/*",
+    "https://*.primevideo.com/*",
+    "https://*.amazon.com/*",
     "https://www.omdbapi.com/*"
   ],
   "background": {
@@ -15,13 +19,19 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://*.netflix.com/*"],
+      "matches": [
+        "https://*.netflix.com/*",
+        "https://*.hotstar.com/*",
+        "https://*.jiocinema.com/*",
+        "https://*.primevideo.com/*",
+        "https://*.amazon.com/*"
+      ],
       "js": ["src/content/index.ts"],
       "run_at": "document_idle"
     }
   ],
   "action": {
-    "default_title": "Netflix Decision Layer",
+    "default_title": "Decision Layer",
     "default_popup": "src/ui/popup.html"
   },
   "options_ui": {

@@ -1,4 +1,5 @@
 import { startObserver } from './observer';
+import { activePlatformId } from './extractor';
 import { attachCardShadow } from './shadow-host';
 import { injectBadges, injectNotFound } from './overlay';
 import { showHover, hideHover } from './hover-card';
@@ -7,7 +8,7 @@ import { getSettings, onSettingsChanged, type Settings } from '@/storage/setting
 import { computeMatch, recordSignal } from '@/storage/preferences';
 import { shouldRecordHover, type Signal } from '@/storage/signals';
 import type { BgRequest, BgResponse } from '@/background/service-worker';
-import type { NetflixCard, NetflixTitleType } from '@/types/netflix';
+import type { TitleCard, TitleType } from '@/types/title';
 import type { TitleRatings } from '@/types/omdb';
 
 let settings: Settings | null = null;
@@ -18,7 +19,14 @@ function log(...args: unknown[]): void {
 }
 
 async function init(): Promise<void> {
-  log('content script init on', location.href);
+  const platform = activePlatformId();
+  if (!platform) {
+    // Content script is matched on broad host patterns (e.g. *.amazon.com);
+    // silently no-op on pages that aren't a supported streaming catalog.
+    log('no supported platform for host', location.hostname, '— content script idle');
+    return;
+  }
+  log('content script init on', location.href, '(', platform, ')');
   try {
     settings = await getSettings();
     log('settings loaded:', {
@@ -65,8 +73,8 @@ function getCardRatings(el: HTMLElement): TitleRatings | null {
 // different movies show the same rating.
 const resolvedImdbIds = new Map<string, Set<string>>(); // imdbId -> {title(s)}
 
-async function handleCard(card: NetflixCard, fingerprint: string): Promise<void> {
-  log('card found:', { title: card.title, year: card.year, type: card.type, netflixId: card.netflixId, fp: fingerprint });
+async function handleCard(card: TitleCard, fingerprint: string): Promise<void> {
+  log('card found:', { platform: card.platform, title: card.title, year: card.year, type: card.type, id: card.id, fp: fingerprint });
   if (settings) {
     const decision = evaluateFilter(null, settings);
     applyFilterToCard(card.element, decision);
@@ -79,7 +87,7 @@ async function handleCard(card: NetflixCard, fingerprint: string): Promise<void>
     fingerprint,
     title: card.title,
     year: card.year,
-    type: card.type as NetflixTitleType,
+    type: card.type as TitleType,
   };
   chrome.runtime.sendMessage(req, (res: BgResponse) => {
     if (chrome.runtime.lastError) {
@@ -89,7 +97,7 @@ async function handleCard(card: NetflixCard, fingerprint: string): Promise<void>
   });
 }
 
-function onResolveResponse(card: NetflixCard, res: BgResponse): void {
+function onResolveResponse(card: TitleCard, res: BgResponse): void {
   if (!res) {
     log('no response from background for', card.title);
     return;
@@ -125,7 +133,7 @@ function onResolveResponse(card: NetflixCard, res: BgResponse): void {
   }
 }
 
-async function renderBadges(card: NetflixCard, ratings: TitleRatings): Promise<void> {
+async function renderBadges(card: TitleCard, ratings: TitleRatings): Promise<void> {
   const shadow = attachCardShadow(card.element);
   let matchPercent: number | undefined;
   let warming = false;
@@ -137,14 +145,14 @@ async function renderBadges(card: NetflixCard, ratings: TitleRatings): Promise<v
   injectBadges(shadow, { ratings, matchPercent, personalizationWarming: warming });
 }
 
-function applyCurrentFilter(card: NetflixCard): void {
+function applyCurrentFilter(card: TitleCard): void {
   if (!settings) return;
   const r = getCardRatings(card.element);
   const decision = evaluateFilter(r, settings);
   applyFilterToCard(card.element, decision);
 }
 
-function wireHover(card: NetflixCard): void {
+function wireHover(card: TitleCard): void {
   // A card element can be reprocessed when Netflix reuses the DOM node for a
   // different title; never stack duplicate listeners (they would double-record
   // hover signals and double-show the hover card).
