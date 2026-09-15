@@ -13,5 +13,10 @@ probe-*.png
 test-results/
 playwright-report/
 
+# Overlay-screenshot diagnostics (not the kept proof shots)
+diag-*.png
+overlay-*-zoom.png
+overlay-hotstar*.png
+
 # Cursor/agent local state
 .cursor/
