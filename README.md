@@ -23,6 +23,13 @@ The basic "IMDb rating on Netflix" overlay is a crowded extension category. This
 
 ## Architecture
 
+![Architecture: streaming rating overlay browser extension](docs/architecture.jpg)
+
+Streaming-platform DOM (Netflix / Hotstar / Prime Video) → **Content Script** → **Platform Adapter** extracts `{title, year, type, platform id}` → **Fingerprint** (`platform|id|title|year|type`) → IndexedDB cache lookup. On a miss, the **Service Worker** (rate-limited) fetches OMDb, writes the cache, and replies; the content script then injects badges + hover card + match %, and the **Filter Engine** applies thresholds. **User Signals** (hover / click / watched / dismiss) feed the **Preference Model**, whose match % is shown on each card.
+
+<details>
+<summary>Equivalent Mermaid flowchart</summary>
+
 ```mermaid
 flowchart LR
     NF[Netflix DOM] --> CS[Content Script]
@@ -49,6 +56,8 @@ flowchart LR
     USR -->|watch/dismiss/hover| SIG[(Signals Store)]
     SIG --> PREF
 ```
+
+</details>
 
 ### Platform adapters
 
