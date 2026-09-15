@@ -2,6 +2,16 @@
 
 A Manifest V3 Chrome extension that turns streaming catalogs into a decision tool. It overlays IMDb / Rotten Tomatoes / Metacritic ratings on title cards across **Netflix, Jio Hotstar, and Amazon Prime Video**, lets you filter the catalog by rating thresholds, and computes a personalized **"Your match %"** score from in-browser signals. All processing is local — there is no backend server.
 
+## Demo
+
+Badges overlaid on Amazon Prime Video title cards (live page, real OMDb ratings). Each card shows ⭐ IMDb, 🍅 Rotten Tomatoes (red = fresh, splat = rotten), 🎯 Metacritic, and ♥ your personalized match %.
+
+![Prime Video cards with overlaid IMDb / Rotten Tomatoes / Metacritic / match% ratings](overlay-prime-row.png)
+
+*Example titles visible above: **My Fault** → ⭐ 4.2 · 🍅 19% · 🎯 33 · ♥ 42%; **Red, White & Royal Blue** → ⭐ 7.0 · 🍅 75% · 🎯 62 · ♥ 70%; **Drawn Together** → ⭐ 7.1 · ♥ 71%.*
+
+[Full-page screenshot](overlay-prime.png) · badges render in a Shadow DOM overlay anchored to each card.
+
 ## Why this exists
 
 The basic "IMDb rating on Netflix" overlay is a crowded extension category. This project deliberately goes further on two axes: (1) ratings are only **one input** into a decision layer that also filters the catalog and learns your taste, and (2) the extractor is a **per-platform adapter** so the same decision layer runs across multiple streaming sites instead of being Netflix-specific. The defensible product is the personalization + the platform-agnostic core, not the badge.
@@ -198,7 +208,7 @@ A lightweight in-browser preference vector over **genres + runtime bucket + deca
 
 - **TypeScript + Vite + `@crxjs/vite-plugin`** — MV3 build with HMR and manifest auto-generation
 - **IndexedDB** via the `idb` wrapper
-- **chrome.storage.sync** for synced settings + API key
+- **chrome.storage.local** for settings + API key (key `ndl_settings` — `sync`'s 1800-writes/10min quota is exhausted by the threshold sliders)
 - **Vitest** + **jsdom** for unit tests (84 passing)
 - **Shadow DOM** for all injected UI
 
