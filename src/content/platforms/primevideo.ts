@@ -1,63 +1,43 @@
 // Amazon Prime Video platform adapter.
+// Confirmed against live https://www.primevideo.com/ (Sep 2026 probe).
 //
-// ⚠ UNCONFIRMED — selectors below are best-guess scaffolds based on typical
-// Prime Video DOM. They MUST be confirmed against the real site with
-// `npm run probe:prime` (headed Chromium) before relying on them. Tune
-// CARD_LINK_SELECTORS / title sources from the probe dump.
-//
-// Host: www.primevideo.com (also amazon.com/gp/video in some regions).
-// Prime Video title URLs use an Amazon Title Video (ATV) id, e.g.
-// /detail/<amzn1.dv.gti...>/ . The id is unique per title.
+// Real DOM: card anchors are <a href="/detail/<ATV-id>?...">. A hero title
+// exposes up to 3 anchors with the SAME href (hero bg, title-art logo, and
+// "More details" CTA) — we dedupe by id so they collapse to ONE card.
+// Title: aria-label is clean; img alt is unreliable ("Desktop Home FBs").
 
 import type { PlatformAdapter } from './platform';
 import type { TitleCard, TitleType } from '@/types/title';
 
-// Best-guess card link selectors. Prime Video cards link to /detail/<id>,
-// /region/eu/detail/<id>, etc. Tune after probing.
-const CARD_LINK_SELECTORS = [
-  'a[href*="/detail/"]',
-  'a[href*="/gp/video/"]',
-  'a[data-testid*="card"]',
-  'a[data-testid*="title"]',
-];
+const CARD_LINK_SELECTORS = ['a[href*="/detail/"]'];
 
-const CONTAINER_SELECTORS = [
-  '[data-testid*="card"]',
-  '[class*="card"]',
-  '[class*="tile"]',
-  '[role="listitem"]',
-];
+const CONTAINER_SELECTORS = ['[data-testid="title-art"]', '[class*="vMn1Fp"]', 'article', '[role="listitem"]', 'li'];
 
 const NON_CARD_ANCESTOR_SELECTORS = [
-  'nav',
-  '[class*="nav"]',
-  '[class*="header"]',
-  '[class*="hero"]',
-  '[class*="search"]',
-  '[role="search"]',
+  '[data-testid="details-cta"]', '[data-testid="action-box"]',
+  'nav', '[class*="nav"]', '[class*="header"]',
 ];
 
 const GENERIC_ARIA_LABELS = new Set([
   'play', 'watch now', 'more info', 'info', 'details', 'share',
   'add to watchlist', 'remove from watchlist', 'watchlist', 'trailer',
+  'home', 'movies', 'tv shows', 'live tv', 'categories', 'sign in',
 ]);
 
-/** Extract the ATV title id from a Prime Video card link's href. */
+const GENERIC_IMG_ALTS = new Set(['desktop home fbs', 'desktop home fb', 'hero', 'logo', '']);
+
 function extractPrimeId(link: HTMLElement): string | undefined {
   const href = link.getAttribute('href') ?? '';
-  // /detail/<id> or /region/<r>/detail/<id>
-  let m = href.match(/\/detail\/([^/?#]+)/);
+  const m = href.match(/\/detail\/([^/?#]+)/);
   if (m) return decodeURIComponent(m[1]);
-  // /gp/video/detail/<id>/
-  m = href.match(/\/gp\/video\/detail\/([^/?#]+)/);
-  if (m) return decodeURIComponent(m[1]);
-  // data-title-id attribute
   const tid = link.getAttribute('data-title-id');
-  if (tid) return tid;
-  return undefined;
+  return tid ?? undefined;
 }
 
 function isInsideNonCard(link: HTMLElement): boolean {
+  const testid = link.getAttribute('data-testid') ?? '';
+  if (testid.startsWith('pv-nav-')) return true;
+  if (testid === 'details-cta') return true;
   for (const sel of NON_CARD_ANCESTOR_SELECTORS) {
     if (link.closest<HTMLElement>(sel)) return true;
   }
@@ -68,6 +48,7 @@ function distinctTitleIdsIn(root: HTMLElement): Set<string> {
   const ids = new Set<string>();
   for (const sel of CARD_LINK_SELECTORS) {
     root.querySelectorAll<HTMLElement>(sel).forEach((l) => {
+      if (isInsideNonCard(l)) return;
       const id = extractPrimeId(l);
       if (id) ids.add(id);
     });
@@ -99,6 +80,7 @@ function findTitleLink(card: HTMLElement): HTMLElement | null {
   for (const sel of CARD_LINK_SELECTORS) {
     const links = card.querySelectorAll<HTMLElement>(sel);
     for (const l of links) {
+      if (isInsideNonCard(l)) continue;
       if (extractPrimeId(l)) return l;
     }
   }
@@ -107,9 +89,10 @@ function findTitleLink(card: HTMLElement): HTMLElement | null {
 
 function findPrimeIdFromLink(card: HTMLElement): string | undefined {
   for (const sel of CARD_LINK_SELECTORS) {
-    const link = card.querySelector<HTMLAnchorElement>(sel);
-    if (link) {
-      const id = extractPrimeId(link);
+    const links = card.querySelectorAll<HTMLElement>(sel);
+    for (const l of links) {
+      if (isInsideNonCard(l)) continue;
+      const id = extractPrimeId(l);
       if (id) return id;
     }
   }
@@ -123,7 +106,8 @@ function parseLabel(label: string): { title?: string; year?: number; type?: Titl
   const lower = label.toLowerCase();
   if (/\b(tv series|series|season)\b/.test(lower)) result.type = 'series';
   else if (/\b(movie|film)\b/.test(lower)) result.type = 'movie';
-  const titlePart = label.split(/\s*\(\d{4}\)|\s+(?:-|–|—)\s+/)[0]?.trim();
+  let titlePart = label.split(/\s*\(\d{4}\)|\s+(?:-|–|—)\s+/)[0]?.trim();
+  if (titlePart) titlePart = titlePart.replace(/^more details for\s+/i, '');
   if (titlePart) result.title = titlePart;
   return result;
 }
@@ -135,7 +119,6 @@ function isLikelyTitleLabel(label: string, parsed: { title?: string }): boolean 
   return label.trim().length >= 1;
 }
 
-/** The Amazon ATV title id that identifies this card element, if any. */
 function getCardId(card: HTMLElement): string | undefined {
   if (card.tagName === 'A') {
     const id = extractPrimeId(card);
@@ -155,15 +138,19 @@ export const primevideoAdapter: PlatformAdapter = {
   getCardId,
 
   findCards(root: ParentNode = document): HTMLElement[] {
-    const found = new Set<HTMLElement>();
+    // Collect one container per unique id, so a hero title's 3 anchors
+    // (bg / title-art / details-cta) collapse to a single card.
+    const byId = new Map<string, HTMLElement>();
     for (const sel of CARD_LINK_SELECTORS) {
       root.querySelectorAll<HTMLElement>(sel).forEach((link) => {
-        if (!extractPrimeId(link)) return;
         if (isInsideNonCard(link)) return;
-        found.add(walkUpToContainer(link));
+        const id = extractPrimeId(link);
+        if (!id) return;
+        if (byId.has(id)) return;
+        byId.set(id, walkUpToContainer(link));
       });
     }
-    return Array.from(found);
+    return Array.from(byId.values());
   },
 
   extractCard(card: HTMLElement): TitleCard | null {
@@ -187,23 +174,7 @@ export const primevideoAdapter: PlatformAdapter = {
       }
     }
 
-    if (!title) {
-      const titleEl =
-        card.querySelector<HTMLElement>('[data-testid*="title"]') ??
-        card.querySelector<HTMLElement>('[class*="title"]');
-      if (titleEl) title = titleEl.textContent?.trim();
-    }
-
-    if (!title) {
-      const img = card.querySelector<HTMLImageElement>('img[alt]');
-      if (img) {
-        const alt = img.getAttribute('alt')?.trim();
-        if (alt && alt.length >= 2 && !GENERIC_ARIA_LABELS.has(alt.toLowerCase())) {
-          title = alt;
-        }
-      }
-    }
-
+    // Fallback: container's aria-label (the title-art <h2> carries it).
     if (!title) {
       const aria = card.getAttribute('aria-label');
       if (aria) {
@@ -213,6 +184,15 @@ export const primevideoAdapter: PlatformAdapter = {
           year = parsed.year;
           if (parsed.type) type = parsed.type;
         }
+      }
+    }
+
+    // Last resort: img alt, but only if it's not generic chrome.
+    if (!title) {
+      const img = card.querySelector<HTMLImageElement>('img[alt]');
+      if (img) {
+        const alt = img.getAttribute('alt')?.trim();
+        if (alt && alt.length >= 2 && !GENERIC_IMG_ALTS.has(alt.toLowerCase())) title = alt;
       }
     }
 

@@ -1,59 +1,46 @@
 // Jio Hotstar / Disney+ Hotstar platform adapter.
+// Confirmed against live https://www.hotstar.com/in (Sep 2026 probe).
 //
-// ⚠ UNCONFIRMED — selectors below are best-guess scaffolds based on typical
-// Hotstar/JioCinema React DOM. They MUST be confirmed against the real site
-// with `npm run probe:hotstar` (headed Chromium) before relying on them.
-// Tune CARD_LINK_SELECTORS / title sources from the probe dump, exactly as
-// was done for Netflix.
-//
-// Hosts: www.hotstar.com, www.jiocinema.com (JioCinema is the successor in IN).
-// Hotstar title URLs use a content slug, e.g. /movies/<slug> or /tv/<slug>.
-// The slug is unique per title, so it serves as the stable card id.
+// Real Hotstar DOM:
+//   - Content cards: <a data-testid="link" href="/in/<type>/<slug>/.../watch"
+//     aria-label="<title>, <metadata>"> wrapping <article> with <img alt="<title>">.
+//   - Nav (EXCLUDE): <a data-testid="link" role="tab" linkuntabbable="true"
+//     href="/in/shows"> — category pages, no /watch.
+//   - Hover dup (EXCLUDE): [data-testid="tray-horizontal-card-hover"].
+//   - Ads (EXCLUDE): [data-testid="ad-media"].
+// Title id = content slug from /in/<type>/<slug>/. Episode/live cards skipped.
 
 import type { PlatformAdapter } from './platform';
 import type { TitleCard, TitleType } from '@/types/title';
 
-// Best-guess card link selectors. Hotstar cards are typically <a> anchors
-// pointing at /movies/…, /tv/…, /show/…, /sports/… . Tune after probing.
 const CARD_LINK_SELECTORS = [
-  'a[href*="/movies/"]',
-  'a[href*="/tv/"]',
-  'a[href*="/show/"]',
-  'a[href*="/series/"]',
+  'a[data-testid="link"][href*="/in/movies/"]',
+  'a[data-testid="link"][href*="/in/shows/"]',
+  'a[data-testid="link"][href*="/in/series/"]',
 ];
 
-// Card-container selectors (fallback for walkUpToContainer).
-const CONTAINER_SELECTORS = [
-  '[class*="card"]',
-  '[data-testid*="card"]',
-  '[class*="tile"]',
-  '[role="listitem"]',
-];
+const CONTAINER_SELECTORS = ['[data-testid="action"][class*="w-full"]', 'article', '[class*="card"]', '[role="listitem"]'];
 
-// Containers that are never a card (nav, hero, search suggestions).
 const NON_CARD_ANCESTOR_SELECTORS = [
-  'nav',
-  '[class*="navbar"]',
-  '[class*="header"]',
-  '[class*="hero"]',
-  '[class*="search"]',
-  '[role="search"]',
+  '[role="tab"]', '[linkuntabbable="true"]', '[linkrole="tab"]',
+  '[data-testid="tray-horizontal-card-hover"]', '[data-testid="ad-media"]',
+  'nav', '[class*="navbar"]', '[class*="header"]',
 ];
 
 const GENERIC_ARIA_LABELS = new Set([
-  'play', 'watch', 'more info', 'info', 'details', 'share', 'add to watchlist',
-  'remove from watchlist', 'watchlist', 'like', 'trailer',
+  'play', 'watch', 'watch now', 'more info', 'info', 'details', 'share',
+  'add to watchlist', 'remove from watchlist', 'watchlist', 'like', 'trailer',
+  'home', 'search', 'tv', 'movies', 'sports', 'categories', 'my space',
 ]);
 
-/** Extract the content slug/id from a Hotstar card link's href. */
 function extractHotstarId(link: HTMLElement): string | undefined {
   const href = link.getAttribute('href') ?? '';
-  // /movies/<slug> or /tv/<slug>/<id> — take the meaningful last path segment.
-  const m = href.match(/\/(?:movies|tv|show|series)\/([^/?#]+)/);
+  const m = href.match(/\/in\/(?:movies|shows|series|sports)\/([^/?#]+)/);
   return m ? decodeURIComponent(m[1]) : undefined;
 }
 
 function isInsideNonCard(link: HTMLElement): boolean {
+  if (link.getAttribute('role') === 'tab') return true;
   for (const sel of NON_CARD_ANCESTOR_SELECTORS) {
     if (link.closest<HTMLElement>(sel)) return true;
   }
@@ -64,6 +51,7 @@ function distinctTitleIdsIn(root: HTMLElement): Set<string> {
   const ids = new Set<string>();
   for (const sel of CARD_LINK_SELECTORS) {
     root.querySelectorAll<HTMLElement>(sel).forEach((l) => {
+      if (isInsideNonCard(l)) return;
       const id = extractHotstarId(l);
       if (id) ids.add(id);
     });
@@ -95,6 +83,7 @@ function findTitleLink(card: HTMLElement): HTMLElement | null {
   for (const sel of CARD_LINK_SELECTORS) {
     const links = card.querySelectorAll<HTMLElement>(sel);
     for (const l of links) {
+      if (isInsideNonCard(l)) continue;
       if (extractHotstarId(l)) return l;
     }
   }
@@ -104,7 +93,7 @@ function findTitleLink(card: HTMLElement): HTMLElement | null {
 function findHotstarIdFromLink(card: HTMLElement): string | undefined {
   for (const sel of CARD_LINK_SELECTORS) {
     const link = card.querySelector<HTMLAnchorElement>(sel);
-    if (link) {
+    if (link && !isInsideNonCard(link)) {
       const id = extractHotstarId(link);
       if (id) return id;
     }
@@ -112,14 +101,23 @@ function findHotstarIdFromLink(card: HTMLElement): string | undefined {
   return undefined;
 }
 
-/** Parse a Hotstar aria-label/title for a bare title (Hotstar labels are
- *  usually just the title, sometimes "Title (Year)"). */
 function parseLabel(label: string): { title?: string; year?: number; type?: TitleType } {
   const result: { title?: string; year?: number; type?: TitleType } = {};
   const yearMatch = label.match(/\((\d{4})\)/);
   if (yearMatch) result.year = parseInt(yearMatch[1], 10);
-  const titlePart = label.split(/\s*\(\d{4}\)/)[0]?.trim();
-  if (titlePart) result.title = titlePart;
+  const lower = label.toLowerCase();
+  if (/\b(episode|clip|teaser)\b/.test(lower)) result.type = 'episode';
+  else if (/\b(series|show|season)\b/.test(lower)) result.type = 'series';
+  else if (/\b(movie|film)\b/.test(lower)) result.type = 'movie';
+  const commaIdx = label.indexOf(', ');
+  if (commaIdx !== -1) {
+    const after = label.slice(commaIdx + 2).toLowerCase();
+    if (/^(clip|episode|teaser|live|movie|film|series|season|\d+\s*(hours?|hrs?|minutes?|mins?))/.test(after)) {
+      result.title = label.slice(0, commaIdx).trim();
+      return result;
+    }
+  }
+  result.title = label.split(/\s*\(\d{4}\)/)[0]?.trim();
   return result;
 }
 
@@ -130,7 +128,6 @@ function isLikelyTitleLabel(label: string, parsed: { title?: string }): boolean 
   return label.trim().length >= 1;
 }
 
-/** The Hotstar content slug/id that identifies this card element, if any. */
 function getCardId(card: HTMLElement): string | undefined {
   if (card.tagName === 'A') {
     const id = extractHotstarId(card);
@@ -171,48 +168,49 @@ export const hotstarAdapter: PlatformAdapter = {
 
     const titleLink = findTitleLink(card);
     if (titleLink) {
-      const aria = titleLink.getAttribute('aria-label') ?? titleLink.getAttribute('title');
-      if (aria) {
-        const parsed = parseLabel(aria);
-        if (isLikelyTitleLabel(aria, parsed)) {
-          title = parsed.title;
-          year = parsed.year;
-        }
-      }
-    }
-
-    if (!title) {
-      const titleEl =
-        card.querySelector<HTMLElement>('[class*="title"]') ??
-        card.querySelector<HTMLElement>('[data-testid*="title"]');
-      if (titleEl) title = titleEl.textContent?.trim();
-    }
-
-    if (!title) {
-      const img = card.querySelector<HTMLImageElement>('img[alt]');
+      // Prefer the poster image alt — it's the cleanest title source on Hotstar.
+      const img = titleLink.querySelector<HTMLImageElement>('img[alt]');
       if (img) {
         const alt = img.getAttribute('alt')?.trim();
         if (alt && alt.length >= 2 && !GENERIC_ARIA_LABELS.has(alt.toLowerCase())) {
           title = alt;
         }
       }
-    }
-
-    if (!title) {
-      const aria = card.getAttribute('aria-label');
-      if (aria) {
-        const parsed = parseLabel(aria);
-        if (isLikelyTitleLabel(aria, parsed)) {
-          title = parsed.title;
-          year = parsed.year;
+      if (!title) {
+        const aria = titleLink.getAttribute('aria-label') ?? titleLink.getAttribute('title');
+        if (aria) {
+          const parsed = parseLabel(aria);
+          if (isLikelyTitleLabel(aria, parsed)) {
+            title = parsed.title;
+            year = parsed.year;
+            if (parsed.type) type = parsed.type;
+          }
         }
       }
     }
 
+    if (!title) {
+      const img = card.querySelector<HTMLImageElement>('img[alt]');
+      if (img) {
+        const alt = img.getAttribute('alt')?.trim();
+        if (alt && alt.length >= 2 && !GENERIC_ARIA_LABELS.has(alt.toLowerCase())) title = alt;
+      }
+    }
+
     if (!title) return null;
-    // Infer type from the href path.
-    if (/\/(tv|series|show)\//.test(titleLink?.getAttribute('href') ?? '')) type = 'series';
-    else if (/\/movies?\//.test(titleLink?.getAttribute('href') ?? '')) type = 'movie';
+
+    // Skip episode / live-stream cards (they don't resolve cleanly on OMDb).
+    const href = titleLink?.getAttribute('href') ?? '';
+    if (/\/live\//.test(href)) return null;
+    if (type === 'episode') return null;
+    // Episode href pattern: /in/shows/<slug>/<show-id>/<ep-slug>/<ep-id>/watch
+    if (/\/\d+\/[^/]+\/\d+\/watch/.test(href)) return null;
+
+    // Infer type from the href path if not already set.
+    if (type === 'unknown') {
+      if (/\/in\/(shows|series)\//.test(href)) type = 'series';
+      else if (/\/in\/movies\//.test(href)) type = 'movie';
+    }
 
     return { platform: 'hotstar', id, title, year, type, element: card };
   },

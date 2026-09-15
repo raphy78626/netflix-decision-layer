@@ -7,6 +7,9 @@ dist/
 .vite/
 coverage/
 .playwright-profile/
+.playwright-profile-*/
+probe-*.json
+probe-*.png
 test-results/
 playwright-report/
 
