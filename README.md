@@ -1,5 +1,10 @@
 # Decision Layer — Ratings for Netflix, Hotstar & Prime
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Tests: Vitest](https://img.shields.io/badge/tests-Vitest-6ECC3F.svg)](#run-tests)
+[![Build: Vite + CRXJS](https://img.shields.io/badge/build-Vite%20%2B%20CRXJS-646CFF.svg)](#quick-start)
+[![Chrome MV3](https://img.shields.io/badge/Chrome-Manifest%20V3-4285F4.svg)](https://developer.chrome.com/docs/extensions/mv3/intro/)
+
 A Manifest V3 Chrome extension that turns streaming catalogs into a decision tool. It overlays IMDb / Rotten Tomatoes / Metacritic ratings on title cards across **Netflix, Jio Hotstar, and Amazon Prime Video**, lets you filter the catalog by rating thresholds, and computes a personalized **"Your match %"** score from in-browser signals. All processing is local — there is no backend server.
 
 ## Demo
@@ -221,4 +226,14 @@ A lightweight in-browser preference vector over **genres + runtime bucket + deca
 
 ## License
 
-Personal project. Not for redistribution. OMDb data is subject to OMDb's terms; IMDb / RT / Metacritic trademarks belong to their respective owners.
+Licensed under the **MIT License** — see [LICENSE](LICENSE). The license covers the source code only; OMDb data is subject to OMDb's terms, and IMDb / Rotten Tomatoes / Metacritic / Netflix / Hotstar / Prime Video are trademarks of their respective owners. This project is not affiliated with or endorsed by any of them.
+
+## Contributing
+
+Contributions are welcome — especially **platform adapters** for new streaming sites and **selector fixes** when a site redesigns. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+A few notes for contributors:
+
+- The shared core (resolver, cache, overlay, filter, preferences) is platform-agnostic and keyed by a platform-prefixed fingerprint — only the adapter selectors should need changes when a site's DOM changes.
+- Add a `tests/dom-shapes-<platform>.test.ts` from real captured DOM when adding/tuning an adapter.
+- Run `npm test` and `npm run typecheck` before opening a PR.
