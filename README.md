@@ -42,10 +42,16 @@ Everything site-specific lives behind a `PlatformAdapter` interface (`findCards`
 | Platform | Status | Host |
 |---|---|---|
 | Netflix | ✅ Confirmed on live `netflix.com/browse` (77 cards, all distinct) | `*.netflix.com` |
-| Jio Hotstar | 🚧 Scaffolded — selectors need a live probe (`npm run probe:hotstar`) | `*.hotstar.com`, `*.jiocinema.com` |
-| Amazon Prime Video | 🚧 Scaffolded — selectors need a live probe (`npm run probe:prime`) | `*.primevideo.com`, `*.amazon.com` |
+| Jio Hotstar | ✅ Confirmed on live `hotstar.com/in/movies` (10 cards, slug-keyed) | `*.hotstar.com`, `*.jiocinema.com` |
+| Amazon Prime Video | ✅ Confirmed on live `primevideo.com/` (hero cards, ATV-id-keyed, 3-anchor dedup) | `*.primevideo.com`, `*.amazon.com` |
 
-To finish a scaffolded platform: run the probe, log in, browse to a card grid, press Enter, then tune `CARD_LINK_SELECTORS` / title sources in `src/content/platforms/<platform>.ts` from the dumped sample. This is the exact process that confirmed Netflix.
+To re-probe a platform against live DOM (e.g. after a site redesign): run the auto-probe (headed Chromium, persistent profile), log in, browse to a card grid, and it auto-dumps selector counts + sample card HTML + a screenshot:
+
+```bash
+npm run probe:netflix   # or probe:hotstar / probe:prime
+```
+
+Tune `CARD_LINK_SELECTORS` / title sources in `src/content/platforms/<platform>.ts` from the dump. The shared core needs no changes; only the adapter selectors.
 
 ### Data flow — single title
 
